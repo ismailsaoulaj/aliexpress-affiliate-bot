@@ -1,4 +1,4 @@
-# AliExpress Affiliate Bot — Home Gadgets Niche
+# AliExpress Affiliate Bot
 
 A Telegram bot that fetches AliExpress deals from the official AliExpress Affiliate API and posts them to a Telegram channel on a scheduled interval.
 
@@ -7,12 +7,15 @@ Built with `python-telegram-bot` v22 (async), `APScheduler` v3, `python-aliexpre
 ## Features
 
 - Fetches products from the official AliExpress Affiliate API (`aliexpress_affiliate_product_query`)
-- Filters for deals with ≥ 40% discount (configurable)
+- Filters for deals with ≥ configurable discount (default 40%)
 - Posts formatted messages with photo, title, pricing, rating, and affiliate link
+- Dynamic currency symbol based on `ALIEXPRESS_CURRENCY` (SAR, USD, EUR, etc.)
+- Pagination support — cycles through multiple pages to discover fresh products
 - Runs on a configurable schedule (every 6 hours by default)
-- Deduplicates using Upstash Redis — survives container restarts
-- Runs once immediately on startup, then on schedule
+- Deduplication using Upstash Redis — survives container restarts
 - Sends admin alerts on fetch failures
+- Health check server for platforms like Railway
+- Docker support
 
 ## Requirements
 
@@ -25,16 +28,12 @@ Built with `python-telegram-bot` v22 (async), `APScheduler` v3, `python-aliexpre
 ## Local Setup
 
 ```bash
-# Clone the repo
-git clone <repo-url> && cd aliexpress-bot
+git clone https://github.com/xabasis/aliexpress-affiliate-bot.git && cd aliexpress-affiliate-bot
 
-# Create virtual environment
 python -m venv venv && source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
 cp .env.example .env
 ```
 
@@ -58,26 +57,33 @@ Edit `.env` and fill in your values:
 | `REDIS_URL`                  | Redis connection string (e.g. from Upstash)           | —                          |
 | `FETCH_INTERVAL_HOURS`       | How often to check for new deals                      | `6`                        |
 | `MIN_DISCOUNT`               | Minimum discount percentage to include                | `40`                       |
+| `MAX_PAGES`                  | Number of pages to cycle through                      | `5`                        |
+| `PORT`                       | Health check server port                              | `8080`                     |
 
 ```bash
-# Run the bot
 python bot.py
+```
+
+## Docker
+
+```bash
+docker build -t aliexpress-bot .
+docker run -it --rm --env-file .env -p 8080:8080 aliexpress-bot
 ```
 
 ## Railway Deployment
 
-### Manual steps
-
 1. Push this repo to GitHub.
 2. Go to [Railway Dashboard](https://railway.app/dashboard) → **New Project** → **Deploy from GitHub repo**.
-3. Railway auto-detects Python; `requirements.txt` and `runtime.txt` are picked up automatically.
+3. Railway auto-detects Python; `requirements.txt`, `runtime.txt`, and `Procfile` are picked up automatically.
 4. Add the following environment variables in Railway:
    - `BOT_TOKEN`
    - `CHANNEL_ID`
    - `ALIEXPRESS_API_KEY`
    - `ALIEXPRESS_API_SECRET`
    - `REDIS_URL`
-5. (Optional) Override `FETCH_INTERVAL_HOURS` or `MIN_DISCOUNT` if desired.
+   - `ALIEXPRESS_CURRENCY` (set to `SAR` for Saudi Riyal)
+5. (Optional) Override `FETCH_INTERVAL_HOURS`, `MIN_DISCOUNT`, or `MAX_PAGES` if desired.
 6. Deploy — the bot starts immediately.
 
 > **Note:** Deduplication uses Upstash Redis (external), so history persists across restarts.
@@ -85,11 +91,14 @@ python bot.py
 ## Project Structure
 
 ```
-aliexpress-bot/
-├── bot.py            # Entry point, scheduler, message sending
-├── config.py         # Env variable loading
+aliexpress-affiliate-bot/
+├── bot.py            # Entry point, scheduler, message formatting, health check
+├── config.py         # Env variable loading + currency symbols
 ├── deals_api.py      # AliExpress Affiliate API fetcher + Deal dataclass
 ├── posted_store.py   # Redis-backed deduplication store
+├── Dockerfile        # Container image definition
+├── .dockerignore     # Files excluded from Docker build
+├── Procfile          # Railway worker process
 ├── requirements.txt  # Python dependencies
 ├── runtime.txt       # Python version for Railway
 └── README.md

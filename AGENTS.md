@@ -7,7 +7,7 @@ source venv/bin/activate
 python bot.py
 ```
 
-No tests, lint, typecheck, or formatter config exists. No `pyproject.toml`.
+No test, lint, typecheck, or formatter config. Works out of the box — no `pyproject.toml` needed.
 
 ## Project structure
 
@@ -29,8 +29,6 @@ Single-module Python project (3.11). No packages, no test files.
 **Affiliate API**: Get credentials at https://openservice.aliexpress.com — the app must have `aliexpress_affiliate_product_query` permission.
 
 **Optional**: `ADMIN_CHAT_ID`, `FETCH_INTERVAL_HOURS`, `MIN_DISCOUNT`, `ALIEXPRESS_TRACKING_ID`, `ALIEXPRESS_LANGUAGE`, `ALIEXPRESS_CURRENCY`, `ALIEXPRESS_KEYWORDS`, `ALIEXPRESS_CATEGORY_IDS`, `ALIEXPRESS_MIN_SALE_PRICE`, `ALIEXPRESS_MAX_SALE_PRICE`, `ALIEXPRESS_SHIP_TO_COUNTRY`.
-
-The committed `.env` previously contained live secrets — do not commit changes to it.
 
 ## Behavior quirks
 
