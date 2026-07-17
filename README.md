@@ -28,7 +28,7 @@ Built with `python-telegram-bot` v22 (async), `APScheduler` v3, `python-aliexpre
 ## Local Setup
 
 ```bash
-git clone https://github.com/xabasis/aliexpress-affiliate-bot.git && cd aliexpress-affiliate-bot
+git clone https://github.com/ismailsaoulaj/aliexpress-affiliate-bot.git && cd aliexpress-affiliate-bot
 
 python -m venv venv && source venv/bin/activate
 
