@@ -151,11 +151,14 @@ async def check_and_publish(bot: Bot, store: PostedStore) -> None:
 
     if not new_deals:
         logger.info("No new deals found on page %d/%d.", _current_page, MAX_PAGES)
+        await _notify_admin(bot, f"📭 No new deals on page {_current_page}/{MAX_PAGES}.")
         _current_page = (_current_page % MAX_PAGES) + 1
         return
 
     logger.info("Found %d new deal(s) on page %d/%d. Posting…", len(new_deals), _current_page, MAX_PAGES)
 
+    sent = 0
+    failed = 0
     for i, deal in enumerate(new_deals):
         caption = _format_caption(deal)
         button = InlineKeyboardButton("🛒 اشتري الآن", url=deal.affiliate_url)
@@ -163,15 +166,23 @@ async def check_and_publish(bot: Bot, store: PostedStore) -> None:
 
         ok = await _send_with_retry(bot, CHANNEL_ID, deal.image_url, caption, deal.title, reply_markup=keyboard)
         if not ok:
+            failed += 1
             continue
 
         await store.mark_posted(deal.product_id)
+        sent += 1
         logger.info("Posted (%d/%d): %s", i + 1, len(new_deals), deal.title[:60])
 
         if i < len(new_deals) - 1:
             await asyncio.sleep(POST_DELAY)
 
+    prev_page = _current_page
     _current_page = (_current_page % MAX_PAGES) + 1
+
+    parts = [f"✅ Published {sent}/{len(new_deals)} on page {prev_page}/{MAX_PAGES}."]
+    if failed:
+        parts.append(f"⚠️ {failed} deal(s) failed to send.")
+    await _notify_admin(bot, "\n".join(parts))
 
 
 async def _handle_health(reader, writer):
@@ -207,6 +218,11 @@ async def main() -> None:
     logger.info(
         "Bot started — checking every %d hour(s). Running once immediately.",
         FETCH_INTERVAL_HOURS,
+    )
+
+    await _notify_admin(
+        bot,
+        f"🚀 Bot started — checking every {FETCH_INTERVAL_HOURS}h on page {_current_page}/{MAX_PAGES}.",
     )
 
     await check_and_publish(bot, store)
