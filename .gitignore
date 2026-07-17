@@ -1,0 +1,7 @@
+.env
+opencode.json
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
