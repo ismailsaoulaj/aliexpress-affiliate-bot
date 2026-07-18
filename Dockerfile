@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY bot.py config.py deals_api.py posted_store.py ./
+COPY search_bot/ ./search_bot/
 
 ENV PYTHONUNBUFFERED=1
 
