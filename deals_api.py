@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from aliexpress_api import AliexpressApi, models
 from aliexpress_api.models.request_parameters import SortBy
+from aliexpress_api.skd import api as aliapi
+from aliexpress_api.helpers.requests import api_request
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,58 @@ def _filter_deals(products: list[models.Product], min_discount: int) -> list[Dea
     return deals
 
 
+def _score_deal(
+    deal: Deal,
+    weight_volume: float = 0.4,
+    weight_discount: float = 0.3,
+    weight_rating: float = 0.3,
+) -> float:
+    max_volume = 10000
+    volume_score = min(deal.orders_count / max_volume, 1.0)
+    discount_score = deal.discount_percentage / 100.0
+    rating_score = deal.rating / 5.0 if deal.rating else 0
+    return (
+        volume_score * weight_volume
+        + discount_score * weight_discount
+        + rating_score * weight_rating
+    )
+
+
+def _rank_deals(deals: list[Deal], top_n: int, **weights) -> list[Deal]:
+    scored = [(deal, _score_deal(deal, **weights)) for deal in deals]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [deal for deal, _ in scored[:top_n]]
+
+
+def _get_short_affiliate_links(
+    product_urls: list[str],
+    tracking_id: str | None,
+) -> dict[str, str]:
+    if not tracking_id or not product_urls:
+        return {}
+
+    request = aliapi.rest.AliexpressAffiliateLinkGenerateRequest()
+    request.source_values = ",".join(product_urls)
+    request.promotion_link_type = 0
+    request.tracking_id = tracking_id
+    request.short_url = "true"
+
+    try:
+        response = api_request(request, "aliexpress_affiliate_link_generate_response")
+    except Exception:
+        logger.warning("Short affiliate link generation failed, using original URLs")
+        return {}
+
+    if not response.total_result_count:
+        return {}
+
+    links = response.promotion_links.promotion_link
+    if not isinstance(links, list):
+        links = [links]
+
+    return {link.source_value: link.promotion_link for link in links if hasattr(link, "source_value")}
+
+
 def fetch_aliexpress_deals(
     api_key: str,
     api_secret: str,
@@ -94,6 +148,11 @@ def fetch_aliexpress_deals(
     min_discount: int = 40,
     page_no: int = 1,
     page_size: int = 50,
+    strategy: str = "hot",
+    top_n: int = 10,
+    weight_volume: float = 0.4,
+    weight_discount: float = 0.3,
+    weight_rating: float = 0.3,
 ) -> list[Deal]:
     if min_sale_price is not None and min_sale_price != "":
         min_sale_price = int(min_sale_price)
@@ -112,16 +171,28 @@ def fetch_aliexpress_deals(
     )
 
     try:
-        response = api.get_products(
-            keywords=keywords or None,
-            category_ids=category_ids or None,
-            min_sale_price=min_sale_price or None,
-            max_sale_price=max_sale_price or None,
-            ship_to_country=ship_to_country or None,
-            page_no=page_no,
-            page_size=page_size,
-            sort=SortBy.LAST_VOLUME_DESC,
-        )
+        if strategy == "hot":
+            response = api.get_hotproducts(
+                keywords=keywords or None,
+                category_ids=category_ids or None,
+                min_sale_price=min_sale_price or None,
+                max_sale_price=max_sale_price or None,
+                ship_to_country=ship_to_country or None,
+                page_no=page_no,
+                page_size=page_size,
+                sort=SortBy.LAST_VOLUME_DESC,
+            )
+        else:
+            response = api.get_products(
+                keywords=keywords or None,
+                category_ids=category_ids or None,
+                min_sale_price=min_sale_price or None,
+                max_sale_price=max_sale_price or None,
+                ship_to_country=ship_to_country or None,
+                page_no=page_no,
+                page_size=page_size,
+                sort=SortBy.LAST_VOLUME_DESC,
+            )
     except Exception:
         logger.exception("AliExpress API request failed")
         raise
@@ -130,9 +201,35 @@ def fetch_aliexpress_deals(
         logger.info("No products returned from AliExpress API")
         return []
 
+    product_urls = [
+        getattr(p, "product_detail_url", "")
+        for p in response.products
+        if getattr(p, "product_detail_url", "")
+    ]
+    short_links = _get_short_affiliate_links(product_urls, tracking_id)
+
+    short_by_pid: dict[str, str] = {}
+    if short_links:
+        for p in response.products:
+            pid = str(getattr(p, "product_id", ""))
+            p_url = getattr(p, "product_detail_url", "")
+            if p_url in short_links:
+                short_by_pid[pid] = short_links[p_url]
+
     deals = _filter_deals(response.products, min_discount)
-    logger.info(
-        "AliExpress API: %d/%d deals passed >= %d%% discount filter",
-        len(deals), len(response.products), min_discount,
+
+    for deal in deals:
+        if deal.product_id in short_by_pid:
+            deal.affiliate_url = short_by_pid[deal.product_id]
+
+    ranked = _rank_deals(deals, top_n,
+        weight_volume=weight_volume,
+        weight_discount=weight_discount,
+        weight_rating=weight_rating,
     )
-    return deals
+
+    logger.info(
+        "AliExpress API (%s): %d/%d deals passed >= %d%% discount, returning top %d",
+        strategy, len(deals), len(response.products), min_discount, len(ranked),
+    )
+    return ranked

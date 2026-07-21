@@ -23,10 +23,15 @@ from config import (
     CHANNEL_ID,
     CURRENCY_SYMBOL,
     FETCH_INTERVAL_HOURS,
+    FETCH_STRATEGY,
     MAX_PAGES,
     MIN_DISCOUNT,
     PORT,
     REDIS_URL,
+    SCORE_WEIGHT_DISCOUNT,
+    SCORE_WEIGHT_RATING,
+    SCORE_WEIGHT_VOLUME,
+    TOP_DEALS,
 )
 from deals_api import Deal, fetch_aliexpress_deals
 from posted_store import PostedStore
@@ -57,26 +62,29 @@ def _format_caption(deal: Deal) -> str:
     lines = [
         f"<b>{title}</b>",
         "",
-        f"السعر: <s>{old}</s> → <b>{new} (خصم {deal.discount_percentage}%! 🔥)</b>",
+        f"💰 السعر: <s>{old}</s> ← <b>{new} (خصم {deal.discount_percentage}% 🔥)</b>",
         "",
     ]
 
     info = []
     if deal.rating:
-        info.append(f"⭐ <b>{deal.rating}</b>/5")
+        info.append(f"⭐ {deal.rating}/5")
     if deal.orders_count:
-        info.append(f"📦 <b>{deal.orders_count:,}+</b> تم البيع")
+        info.append(f"📦 {deal.orders_count:,}+ تم البيع")
     if info:
         lines.append("  •  ".join(info))
 
     if deal.shop_name:
-        lines.append(f"المتجر:  {deal.shop_name}")
+        lines.append(f"🏪 المتجر: {deal.shop_name}")
+
+    lines.extend([
+        "───────────────────",
+        "🔍 هل تبحث عن منتج آخر؟",
+        'جرب بوت البحث الذكي 👈 <a href="https://t.me/SaudiAlibot">@SaudiAlibot</a>',
+        "أرسل اسم أي منتج، أو ألصق رابط علي إكسبرس لإيجاد بدائل أرخص بذكاء اصطناعي يفهم العربي والعامي تلقائياً! 🤖",
+    ])
 
     result = "\n".join(lines)
-
-    if len(result) > CAPTION_LIMIT:
-        lines = [l for l in result.split("\n") if not l.startswith(("🏪", "⭐", "📦"))]
-        result = "\n".join(lines)
 
     return result[:CAPTION_LIMIT]
 
@@ -134,6 +142,11 @@ async def check_and_publish(bot: Bot, store: PostedStore) -> None:
                 ship_to_country=ALIEXPRESS_SHIP_TO_COUNTRY,
                 min_discount=MIN_DISCOUNT,
                 page_no=_current_page,
+                strategy=FETCH_STRATEGY,
+                top_n=TOP_DEALS,
+                weight_volume=SCORE_WEIGHT_VOLUME,
+                weight_discount=SCORE_WEIGHT_DISCOUNT,
+                weight_rating=SCORE_WEIGHT_RATING,
             ),
         )
     except Exception as exc:

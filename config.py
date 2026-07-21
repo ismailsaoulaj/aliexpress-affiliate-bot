@@ -32,3 +32,9 @@ FETCH_INTERVAL_HOURS = int(os.getenv("FETCH_INTERVAL_HOURS", "6"))
 
 MAX_PAGES = int(os.getenv("MAX_PAGES", "5"))
 PORT = int(os.getenv("PORT", "8080"))
+
+FETCH_STRATEGY = os.getenv("FETCH_STRATEGY", "hot")
+SCORE_WEIGHT_VOLUME = float(os.getenv("SCORE_WEIGHT_VOLUME", "0.4"))
+SCORE_WEIGHT_DISCOUNT = float(os.getenv("SCORE_WEIGHT_DISCOUNT", "0.3"))
+SCORE_WEIGHT_RATING = float(os.getenv("SCORE_WEIGHT_RATING", "0.3"))
+TOP_DEALS = int(os.getenv("TOP_DEALS", "10"))
