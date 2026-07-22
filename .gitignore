@@ -1,5 +1,6 @@
 .env
 opencode.json
+codebase.md
 node_modules/
 venv/
 __pycache__/

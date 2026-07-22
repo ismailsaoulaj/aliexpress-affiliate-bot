@@ -48,28 +48,36 @@ def _safe_int(val: int | str | None) -> int:
     return int(val)
 
 
-def _product_to_deal(product: models.Product) -> Deal:
-    old_price = _safe_float(getattr(product, "target_original_price", None))
-    new_price = _safe_float(getattr(product, "target_sale_price", None))
+def _safe_getattr(obj, attr: str, default=None):
+    """Safe getattr that works with SimpleNamespace, NamedTuple, dataclasses, and regular objects."""
+    try:
+        return getattr(obj, attr, default)
+    except AttributeError:
+        return default
+
+
+def _product_to_deal(product) -> Deal:
+    old_price = _safe_float(_safe_getattr(product, "target_original_price", None))
+    new_price = _safe_float(_safe_getattr(product, "target_sale_price", None))
     if new_price == 0:
-        old_price = _safe_float(getattr(product, "original_price", None))
-        new_price = _safe_float(getattr(product, "sale_price", None))
-    discount = _parse_discount(getattr(product, "discount", None))
-    rating = _safe_float(getattr(product, "evaluate_rate", None))
-    orders = _safe_int(getattr(product, "lastest_volume", None))
-    affiliate_url = getattr(product, "promotion_link", None) or getattr(product, "product_detail_url", "")
+        old_price = _safe_float(_safe_getattr(product, "original_price", None))
+        new_price = _safe_float(_safe_getattr(product, "sale_price", None))
+    discount = _parse_discount(_safe_getattr(product, "discount", None))
+    rating = _safe_float(_safe_getattr(product, "evaluate_rate", None))
+    orders = _safe_int(_safe_getattr(product, "lastest_volume", None))
+    affiliate_url = _safe_getattr(product, "promotion_link", None) or _safe_getattr(product, "product_detail_url", "")
 
     return Deal(
-        product_id=str(getattr(product, "product_id", "")),
-        title=getattr(product, "product_title", ""),
-        image_url=getattr(product, "product_main_image_url", ""),
+        product_id=str(_safe_getattr(product, "product_id", "")),
+        title=_safe_getattr(product, "product_title", ""),
+        image_url=_safe_getattr(product, "product_main_image_url", ""),
         old_price=old_price,
         new_price=new_price,
         discount_percentage=discount,
         rating=rating,
         orders_count=orders,
         affiliate_url=affiliate_url,
-        shop_name=getattr(product, "shop_name", ""),
+        shop_name=_safe_getattr(product, "shop_name", ""),
     )
 
 
@@ -202,17 +210,17 @@ def fetch_aliexpress_deals(
         return []
 
     product_urls = [
-        getattr(p, "product_detail_url", "")
+        _safe_getattr(p, "product_detail_url", "")
         for p in response.products
-        if getattr(p, "product_detail_url", "")
+        if _safe_getattr(p, "product_detail_url", "")
     ]
     short_links = _get_short_affiliate_links(product_urls, tracking_id)
 
     short_by_pid: dict[str, str] = {}
     if short_links:
         for p in response.products:
-            pid = str(getattr(p, "product_id", ""))
-            p_url = getattr(p, "product_detail_url", "")
+            pid = str(_safe_getattr(p, "product_id", ""))
+            p_url = _safe_getattr(p, "product_detail_url", "")
             if p_url in short_links:
                 short_by_pid[pid] = short_links[p_url]
 
